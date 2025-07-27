@@ -8,7 +8,6 @@
 // #include <random>
 // #include <functional>
 
-// Estrutura para configurações de emissão
 struct EmissionConfig
 {
     Vector3 position = { 0, 0, 0 };
@@ -1153,11 +1152,12 @@ struct Effect
     float maxLife;
     Color color;
     float speed;
+    u32 id;
     
 
-    Effect(Vector3 pos, EffectType t, float rot, float lifeTime, float sz, float speed)
+    Effect(Vector3 pos, EffectType t, float rot, float lifeTime, float sz, float speed, u32 id = 0)
         : position(pos), type(t), rotation(rot), size(sz), maxSize(sz),
-          life(lifeTime), maxLife(lifeTime), color(WHITE), speed(speed) 
+          life(lifeTime), maxLife(lifeTime), color(WHITE), speed(speed), id(id) 
     {}
 };
 
@@ -1197,19 +1197,34 @@ public:
     }
 
  
-    void CreateMuzzleFlash(Vector3 position, float rotation, float lifeTime, float size)
+    void CreateMuzzleFlash(Vector3 position, float rotation, float lifeTime, float size,u32 id = 0)
     {
        
-        effects.emplace_back(position, BILLBOARD, rotation, lifeTime, size,0.0f);
+        effects.emplace_back(position, BILLBOARD, rotation, lifeTime, size,0.0f,id);
     }
 
   
-    void CreateShockwave(Vector3 position, float maxSize, float lifeTime, float sz,float speed)
+    void CreateShockwave(Vector3 position, float maxSize, float lifeTime, float sz,float speed,u32 id = 0)
     {
        
-        Effect shock(position, YUP_PLANE, 0, lifeTime, sz, speed);
+        Effect shock(position, YUP_PLANE, 0, lifeTime, sz, speed,id);
         shock.maxSize = maxSize;
         effects.push_back(shock);
+    }
+
+    void ClearByID(u32 id)
+    {
+        for (auto it = effects.begin(); it != effects.end();)
+        {
+            if (it->id == id)
+            {
+                it = effects.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
     }
 
     void Update(float deltaTime)
@@ -1321,7 +1336,7 @@ public:
         }
 
         batch.Render(texture.id);
-        batch.Clear();
+
         
     }
 

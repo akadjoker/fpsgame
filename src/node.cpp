@@ -137,8 +137,6 @@ Matrix Node3D::GetLocalMatrix() const
     Matrix scaleMat = MatrixScale(localScale.x, localScale.y, localScale.z);
     Matrix rotMat   = QuaternionToMatrix(localRotation);
     Matrix transMat = MatrixTranslate(localPosition.x, localPosition.y, localPosition.z);
-
-
     Matrix local = MatrixMultiply(MatrixMultiply(scaleMat, rotMat), transMat);
     return local;
 
@@ -238,7 +236,7 @@ void Model3D::Render()
         DrawMesh(model->meshes[i], model->materials[model->meshMaterial[i]], model->transform);
         model->materials[model->meshMaterial[i]].maps[MATERIAL_MAP_DIFFUSE].color = color;
     }
-    DrawBoundingBox(world, RED);
+   // DrawBoundingBox(world, RED);
 }
 
 void Model3D::SetTexture(u32 index , Texture2D texture)
@@ -262,7 +260,10 @@ bool Model3D::collide(const Ray& ray, float maxDistance, PickData *data)
     PickData pickData;
     pickData.collide = false;
     pickData.node=nullptr;
+    
+    Matrix worldMat = GetWorldMatrix();
     RayCollision collision = GetRayCollisionBox(ray, world);
+
     
     if (collision.hit && collision.distance <= maxDistance)
     {
@@ -297,9 +298,9 @@ bool Model3D::collide(const Ray& ray, float maxDistance, PickData *data)
                 };
                 
                 // Transform triangle vertices to world space
-                triangle.pointA = Vector3Transform(triangle.pointA, this->GetWorldMatrix());
-                triangle.pointB = Vector3Transform(triangle.pointB, this->GetWorldMatrix());
-                triangle.pointC = Vector3Transform(triangle.pointC, this->GetWorldMatrix());
+                triangle.pointA = Vector3Transform(triangle.pointA, worldMat);
+                triangle.pointB = Vector3Transform(triangle.pointB, worldMat);
+                triangle.pointC = Vector3Transform(triangle.pointC, worldMat);
                 triangle.updateBounds();
                 
                 // Test ray-triangle intersection
@@ -334,6 +335,73 @@ bool Model3D::collide(const Ray& ray, float maxDistance, PickData *data)
     }
     
     return false;
+}
+
+ void Model3D::buildTriangleCache() const
+ {
+        cachedTriangles.clear();
+        Matrix worldMat = GetWorldMatrix();
+        
+        for (int i = 0; i < model->meshCount; i++)
+        {
+            Mesh mesh = model->meshes[i];
+            
+            for (int j = 0; j < mesh.triangleCount * 3; j += 3)
+            {
+                int i0 = mesh.indices[j + 0];
+                int i1 = mesh.indices[j + 1];
+                int i2 = mesh.indices[j + 2];
+                
+                Triangle triangle;
+                triangle.pointA = {
+                    mesh.vertices[i0 * 3 + 0],
+                    mesh.vertices[i0 * 3 + 1],
+                    mesh.vertices[i0 * 3 + 2]
+                };
+                triangle.pointB = {
+                    mesh.vertices[i1 * 3 + 0],
+                    mesh.vertices[i1 * 3 + 1],
+                    mesh.vertices[i1 * 3 + 2]
+                };
+                triangle.pointC = {
+                    mesh.vertices[i2 * 3 + 0],
+                    mesh.vertices[i2 * 3 + 1],
+                    mesh.vertices[i2 * 3 + 2]
+                };
+                
+                // Transform triangle vertices to world space
+                triangle.pointA = Vector3Transform(triangle.pointA, worldMat);
+                triangle.pointB = Vector3Transform(triangle.pointB, worldMat);
+                triangle.pointC = Vector3Transform(triangle.pointC, worldMat);
+                triangle.updateBounds();
+                
+                cachedTriangles.push_back(triangle);   
+            }
+        }
+ }
+
+bool Model3D::collectTriangles(const BoundingBox& area, std::vector<const Triangle*>& out) const
+{
+     if (!m_visible) return false;
+     if (!CheckCollisionBoxes(world, area)) return false;
+    
+
+        if (!trianglesCacheValid) 
+        {
+            buildTriangleCache();
+            trianglesCacheValid = true;
+        }
+        
+        
+        for (const Triangle& triangle : cachedTriangles) 
+        {
+            if (CheckCollisionBoxes(triangle.bounds, area)) 
+            {
+                out.push_back(&triangle);
+            }
+        }
+        
+        return !out.empty();
 }
 
 bool Model3D::collide(const BoundingBox& area, PickData* data)
@@ -607,10 +675,13 @@ std::vector<Triangle> Model3D::GetTriangles(bool transform)
 }
 
 
+static u32 IDS = 0;
+
 
 Model3D* Scene::AddNode(Model* model) 
 {
      Model3D* newNode = new Model3D(model);
+     newNode->ID = IDS++;
      this->nodes.push_back(newNode);
      return newNode;
 }
@@ -618,6 +689,7 @@ Model3D* Scene::AddNode(Model* model)
 Model3D* Scene::AddNode(Model* model, Vector3 position) 
 {
     Model3D *newNode = new Model3D(model);
+    newNode->ID = IDS++;
     newNode->localPosition = position;
     newNode->GetWorldMatrix();
     this->nodes.push_back(newNode);
@@ -627,6 +699,7 @@ Model3D* Scene::AddNode(Model* model, Vector3 position)
 Model3D* Scene::AddNode(Model* model, Vector3 position, Vector3 scale)
 {
     Model3D *newNode = new Model3D(model);
+    newNode->ID = IDS++;
     newNode->localPosition = position;
     newNode->localScale = scale;
     newNode->GetWorldMatrix();
@@ -696,12 +769,24 @@ bool Scene::collide(const BoundingBox& area, PickData* data)
     return false;
 }
 
+std::vector<const Triangle*> Scene::collectTriangles(const BoundingBox& area) const
+{
+    std::vector<const Triangle*> triangles;
+    for (auto& node : nodes)
+    {
+        node->collectTriangles(area, triangles);
+    }
+    return triangles;
+}
+
+
+
 
 void Scene::Update(float dt) 
 {
     for (auto& node : nodes)
     {
-     //   node->Update(dt);
+        node->Update(dt);
     }
 
     for (auto& node : toRemove)

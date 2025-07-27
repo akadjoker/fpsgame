@@ -82,6 +82,8 @@ void CameraFPS::Update(float deltaTime, Collider& world)
 
     fallingVelocity =Vector3Add(fallingVelocity, Vector3Scale(gravity, deltaTimeMs));
 
+    
+
     Vector3 result = world.collideEllipsoidWithWorld(
         lastPosition, 
         ellipsoidRadius, 

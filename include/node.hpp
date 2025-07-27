@@ -7,6 +7,7 @@
 // #include <string>
 
 class Model3D;
+class Scene;
 
 class MatrixStack 
 {
@@ -240,6 +241,8 @@ public:
 class Node3D {
 public:
     std::string name{ "Node3D" };
+       int tag = 0;
+    void* userData = nullptr;
 
     // Transformação local (relativa ao pai)
     Vector3 localPosition = { 0.0f, 0.0f, 0.0f };
@@ -253,7 +256,7 @@ public:
 
     // Hierarquia
     Node3D* parent = nullptr;
-    std::vector<Node3D*> children;
+
     Matrix local;
 
 
@@ -277,7 +280,8 @@ public:
     void Rotate(Vector3 rotation);
     void Scale(Vector3 scale);
 
-    virtual void render() {}
+    virtual void Render() {}
+    virtual void Update(float dt) {}
 
     void SetWorldPosition(Vector3 position);
     void SetWorldRotation(Vector3 rotation);
@@ -294,10 +298,13 @@ public:
     Matrix GetLocalMatrix() const;
     Matrix GetWorldMatrix() const;
     Matrix GetInverseWorldMatrix() const;
+    u32 GetID() const { return ID; }
 
 
 private:
-    void UpdateLocalMatrix();
+    std::vector<Node3D*> children;
+     u32 ID = 0;
+     friend class Scene;
 };
 
 
@@ -318,6 +325,8 @@ class Model3D : public Node3D
     BoundingBox bounds;
     BoundingBox world;
     bool m_visible = true;
+    mutable std::vector<Triangle> cachedTriangles;  // Cache dos triângulos
+    mutable bool trianglesCacheValid = false;
 
 public:
     Model3D(Model* model);
@@ -331,9 +340,16 @@ public:
     bool collide(const Vector3& point, float radius, PickData *data) ;
     bool collide(const Ray& ray, float maxDistance, PickData* data) ;
 
+      //std::vector<const Triangle*> triangles;
+
+    bool collectTriangles(const BoundingBox& area, std::vector<const Triangle*>& out) const;
+    bool collectTriangles(const Ray& ray, std::vector<const Triangle*>& out) const;
+    bool collectTriangles(const Vector3& point, float radius, std::vector<const Triangle*>& out) const;
+
     std::vector<Triangle> GetTriangles(bool transform = false);
 
-    int tag = 0;
+    void invalidateTriangleCache() {        trianglesCacheValid = false;}
+    void buildTriangleCache() const;
 };
 
 
@@ -364,5 +380,7 @@ public:
     bool collide(const BoundingBox& area, PickData* data) ;
     bool collide(const Vector3& point, float radius, PickData *data) ;
     bool collide(const Ray& ray, float maxDistance, PickData* data) ;
+
+    std::vector<const Triangle*> collectTriangles(const BoundingBox& area) const;
 
 };

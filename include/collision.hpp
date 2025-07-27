@@ -7,6 +7,7 @@
 // #include <math.h>
 
 class BSPSurface;
+class Scene;
 
 #define MAX_RECURSION 5
 
@@ -232,11 +233,12 @@ struct Collider
 private:
    
     Selector* collisionSelector{nullptr}; 
+    Scene *scene{nullptr};
 public:
     void setCollisionSelector(Selector* selector);
+    void setScene(Scene* scene);
  
-    Vector3 collideWithWorld(s32 recursionDepth, CollisionData& colData,
-                             Vector3 pos, Vector3 vel);
+    Vector3 collideWithWorld(s32 recursionDepth, CollisionData& colData,Vector3 pos, Vector3 vel);
     Vector3 collideEllipsoidWithWorld(
         const Vector3& position, const Vector3& radius, const Vector3& velocity,
         float slidingSpeed, const Vector3& gravity, Triangle& triout,

@@ -4,87 +4,8 @@
 #define MAT(mat, row, col) (((float*)&mat)[col * 4 + row])
 
 
-
  
-Quaternion quat(float x, float y, float z, float w) { return {x, y, z, w}; }
-
-Quaternion Slerp(Quaternion &q1, Quaternion &q2, float t)
-{
-	// Create a local quaternion to store the interpolated quaternion
-	Quaternion qInterpolated;
-
-
-	if(q1.x == q2.x && q1.y == q2.y && q1.z == q2.z && q1.w == q2.w) 
-		return q1;
-
-	// Following the (b.a) part of the equation, we do a dot product between q1 and q2.
-	// We can do a dot product because the same math applied for a 3D vector as a 4D vector.
-	float result = (q1.x * q2.x) + (q1.y * q2.y) + (q1.z * q2.z) + (q1.w * q2.w);
-
-	// If the dot product is less than 0, the angle is greater than 90 degrees
-	if(result < 0.0f)
-	{
-		// Negate the second quaternion and the result of the dot product
-		q2 = quat(-q2.x, -q2.y, -q2.z, -q2.w);
-		result = -result;
-	}
-
-	// Set the first and second scale for the interpolation
-	float scale0 = 1 - t, scale1 = t;
-
-	if(1 - result > 0.1f)
-	{
-		// Get the angle between the 2 quaternions, and then store the sin() of that angle
-		float theta = (float)acos(result);
-		float sinTheta = (float)sin(theta);
-
-		// Calculate the scale for q1 and q2, according to the angle and it's sine value
-		scale0 = (float)sin( ( 1 - t ) * theta) / sinTheta;
-		scale1 = (float)sin( ( t * theta) ) / sinTheta;
-	}	
-
-
-	qInterpolated.x = (scale0 * q1.x) + (scale1 * q2.x);
-	qInterpolated.y = (scale0 * q1.y) + (scale1 * q2.y);
-	qInterpolated.z = (scale0 * q1.z) + (scale1 * q2.z);
-	qInterpolated.w = (scale0 * q1.w) + (scale1 * q2.w);
-
-
-	return qInterpolated;
-}
-
-
-Matrix CreateMatrix(Quaternion &q)
-{
-    Matrix pMatrix;
-    // First row
-    pMatrix.m0 = 1.0f - 2.0f * ( q.y * q.y + q.z * q.z );  
-	pMatrix.m1 = 2.0f * ( q.x * q.y - q.w * q.z );  
-	pMatrix.m2 = 2.0f * ( q.x * q.z + q.w * q.y );  
-	pMatrix.m3 = 0.0f;  
-
-	// Second row
-	pMatrix.m4 = 2.0f * ( q.x * q.y + q.w * q.z );  
-	pMatrix.m5 = 1.0f - 2.0f * ( q.x * q.x + q.z * q.z );  
-	pMatrix.m6 = 2.0f * ( q.y * q.z - q.w * q.x );  
-	pMatrix.m7 = 0.0f;  
-
-	// Third row
-	pMatrix.m8 = 2.0f * ( q.x * q.z - q.w * q.y );  
-	pMatrix.m9 = 2.0f * ( q.y * q.z + q.w * q.x );  
-	pMatrix.m10 = 1.0f - 2.0f * ( q.x * q.x + q.y * q.y );  
-	pMatrix.m11 = 0.0f;  
-
-	// Fourth row
-	pMatrix.m12 = 0;  
-	pMatrix.m13 = 0;  
-	pMatrix.m14 = 0;  
-	pMatrix.m15 = 1.0f;
-
-    return pMatrix;
-
-	// Now pMatrix[] is a 4x4 homogeneous matrix that can be applied to an OpenGL Matrix
-}
+ 
 
 Quaternion CreateFromMatrix(float *pTheMatrix, int rowColumnCount)
 {
@@ -96,10 +17,10 @@ Quaternion CreateFromMatrix(float *pTheMatrix, int rowColumnCount)
     float *pMatrix = pTheMatrix;
     float m4x4[16] = {0};
 
-    // Converter 3x3 para 4x4 se necessário
+    // Converter 3x3 para 4x4  
     if(rowColumnCount == 3)
     {
-        // IMPORTANTE: Transpor a matriz 3x3 de row-major (MD3) para column-major (OpenGL)
+        //  Transpor a matriz 3x3 de row-major (MD3) para column-major (OpenGL)
         // MD3 row-major:     OpenGL column-major:
         // [0 1 2]            [0 3 6]
         // [3 4 5]    --->    [1 4 7]  
@@ -113,7 +34,7 @@ Quaternion CreateFromMatrix(float *pTheMatrix, int rowColumnCount)
         pMatrix = &m4x4[0];
     }
 
-    // Calcular o trace (diagonal)
+ 
     float trace = pMatrix[0] + pMatrix[5] + pMatrix[10] + 1.0f;
     float scale = 0.0f;
 
@@ -153,7 +74,7 @@ Quaternion CreateFromMatrix(float *pTheMatrix, int rowColumnCount)
         }
     }
     
-    // Normalizar o quaternion
+ 
     float length = sqrtf(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
     if(length > 0.00000001f) {
         q.x /= length;
@@ -174,10 +95,10 @@ Matrix BuildTagMatrix(tMd3Tag& tagA, tMd3Tag& tagB, float t)
     Quaternion qA = CreateFromMatrix(tagA.rotation, 3);
     Quaternion qB = CreateFromMatrix(tagB.rotation, 3);
 
-    // Interpolação da rotação (SLERP)
+ 
     Quaternion qInterpolated = QuaternionSlerp(qA, qB, t);
 
-    // Criar matriz a partir do quaternion (já em column-major)
+ 
     Matrix result = QuaternionToMatrix(qInterpolated);
 
     // Colocar a posição nos campos corretos para column-major
@@ -187,85 +108,9 @@ Matrix BuildTagMatrix(tMd3Tag& tagA, tMd3Tag& tagB, float t)
 
     return result;
 }
-    // Transpor ao copiar: MD3 é row-major, Mat3 é column-major
-static void fromMD3Rotation(const float rotation[3][3], float result[3][3])
-{
-    // Transpor a matriz: result[col][row] = rotation[row][col]
-    for (int row = 0; row < 3; ++row)
-    {
-        for (int col = 0; col < 3; ++col)
-        {
-            result[col][row] = rotation[row][col];
-        }
-    }
-}
-
-
-Quaternion QuaternionFromRotationMatrix(const float matrix[9]) 
-{
-    Quaternion q;
-
-   
-
-    // Assumindo que matrix[9] está em formato row-major:
-    // [0] [1] [2]
-    // [3] [4] [5]  
-    // [6] [7] [8]
-    
-    float m00 = matrix[0];  // [0,0]
-    float m01 = matrix[1];  // [0,1]
-    float m02 = matrix[2];  // [0,2]
-    float m10 = matrix[3];  // [1,0]
-    float m11 = matrix[4];  // [1,1]
-    float m12 = matrix[5];  // [1,2]
-    float m20 = matrix[6];  // [2,0]
-    float m21 = matrix[7];  // [2,1]
-    float m22 = matrix[8];  // [2,2]
-    
-    float t = m00 + m11 + m22;
-    
-    if (t > 0.0f)
-    {
-        float invS = 0.5f / sqrtf(1.0f + t);
-        
-        q.x = (m21 - m12) * invS;
-        q.y = (m02 - m20) * invS;
-        q.z = (m10 - m01) * invS;
-        q.w = 0.25f / invS;
-    }
-    else
-    {
-        if (m00 > m11 && m00 > m22)
-        {
-            float invS = 0.5f / sqrtf(1.0f + m00 - m11 - m22);
-            
-            q.x = 0.25f / invS;
-            q.y = (m01 + m10) * invS;
-            q.z = (m20 + m02) * invS;
-            q.w = (m21 - m12) * invS;
-        }
-        else if (m11 > m22)
-        {
-            float invS = 0.5f / sqrtf(1.0f + m11 - m00 - m22);
-            
-            q.x = (m01 + m10) * invS;
-            q.y = 0.25f / invS;
-            q.z = (m12 + m21) * invS;
-            q.w = (m02 - m20) * invS;
-        }
-        else
-        {
-            float invS = 0.5f / sqrtf(1.0f + m22 - m00 - m11);
-            
-            q.x = (m02 + m20) * invS;
-            q.y = (m12 + m21) * invS;
-            q.z = 0.25f / invS;
-            q.w = (m10 - m01) * invS;
-        }
-    }
-    
-    return q;
-}
+  
+ 
+ 
 
 LoadMD3::LoadMD3()  
 {
@@ -515,7 +360,7 @@ bool LoadMD3::Load(const char* szFileName,     float scale)
 
 
 
-    return false; 
+    return true; 
 }
 
 
@@ -670,7 +515,7 @@ Vector3 LoadMD3::GetTagPosition(u32 index)
 void LoadMD3::UpdateTags(int currentFrame, int nextFrame, float pol)
 {
      int currentOffset = currentFrame * numOfTags;
-     int nextOffset = nextFrame * numOfTags;
+  //   int nextOffset = nextFrame * numOfTags;
 
 
      for (u32 i = 0; i < numOfTags; i++)
@@ -690,13 +535,13 @@ void LoadMD3::UpdateTags(int currentFrame, int nextFrame, float pol)
        // m_links[i].trasform = BuildTagMatrix(m_tags[currentOffset + i], m_tags[nextOffset + i], pol);
         //  MatrixTranspose(QuaternionToMatrix(rotation));
         
-        Mat3 rotA = Mat3FromMD3AxisColumn(m_tags[currentOffset + i].axes);
-        Quaternion quatA = Mat3ToQuaternion(rotA);
+        // Mat3 rotA = Mat3FromMD3AxisColumn(m_tags[currentOffset + i].axes);
+        // Quaternion quatA = Mat3ToQuaternion(rotA);
 
-        Mat3 rotB = Mat3FromMD3AxisColumn(m_tags[nextOffset + i].axes);
-        Quaternion quatB = Mat3ToQuaternion(rotB);
+        // Mat3 rotB = Mat3FromMD3AxisColumn(m_tags[nextOffset + i].axes);
+        // Quaternion quatB = Mat3ToQuaternion(rotB);
 
-        Quaternion rotation = QuaternionSlerp(quatA, quatB, pol);
+     //   Quaternion rotation = QuaternionSlerp(quatA, quatB, pol);
 
 
         m_links[i].trasform= MatrixIdentity();

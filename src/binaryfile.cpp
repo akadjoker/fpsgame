@@ -57,6 +57,7 @@ void BinaryFile::clear()
 {
     if (data != nullptr)
     {
+        LogInfo("Freeing file data.");
         if (readOnly)
         {
             UnloadFileData((unsigned char*)data);

@@ -3,7 +3,7 @@
 #include "pch.h"
 #include "cache.hpp"
 #include "batch.hpp"
-#include "bsp.h"
+#include "bsp.hpp"
 #include "collision.hpp"
 #include "frustum.hpp"
 #include "camera.hpp"
@@ -46,7 +46,7 @@ Vector3 CalculateWeaponBobbing(float deltaTime)
 int main()
 {
 
-  //  SetTraceLogLevel(LOG_NONE);
+    SetTraceLogLevel(LOG_NONE);
 
     InitWindow(1024, 768, "Sistema de Colisão FPS - Raylib");
     InitAudioDevice();
@@ -136,6 +136,7 @@ int main()
     quad.rebuild();
 
     world.setCollisionSelector(&quad);
+    world.setScene(&scene);
 
 
     float blend = 0.5f;
@@ -339,20 +340,18 @@ int main()
                 PickData data;
                  if (scene.collide(ray,100.0f, &data))
                  {
-                     //decals.AddDecal(data.intersectionPoint, data.intersectionTriangle.normal, &data.intersectionTriangle, decal, 0.2f,WHITE);
+                     decals.AddDecal(data.intersectionPoint, data.intersectionTriangle.normal, &data.intersectionTriangle, decal, 0.2f,WHITE,data.node->GetID());
                      particleSystem.EmitBulletImpact(data.intersectionPoint, data.intersectionTriangle.normal, 20);
-                   ////  scene.AddToRemove(data.node);
-                   // camera.StartShake(0.05f, 0.1f);
-
                    
                    
                    data.node->tag++;
                    if (data.node->tag == 3)
                    {
-                       data.node->SetVisible(false);
+                       particleSystem.EmitBarrelExplosion(data.intersectionPoint, 1.0f);
                        shockWave.CreateShockwave(Vector3Add(data.node->localPosition, {0,0.9,0}), 8.0f, 2.5f, 0.5f, 10.0f);
                        camera.StartShake(0.1f, 0.3f);
-                       particleSystem.EmitBarrelExplosion(data.intersectionPoint, 1.0f);
+                       data.node->SetVisible(false);
+                       decals.ClearByID(data.node->GetID());
                      }
                  }
          

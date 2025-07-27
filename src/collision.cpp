@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "Config.hpp"
 #include "collision.hpp"
-#include "bsp.h"
+#include "bsp.hpp"
+#include "node.hpp"
 #include <cfloat>
 
 
@@ -363,7 +364,15 @@ void Collider::setCollisionSelector(Selector* selector)
         collisionSelector = selector;
     }
 }
- 
+
+void Collider::setScene(Scene* scene) 
+{
+    if (scene) 
+    {
+        this->scene = scene;
+    }
+}
+
 
 Vector3 Collider::collideWithWorld(s32 recursionDepth, CollisionData& colData,Vector3 pos, Vector3 vel)
 {
@@ -380,15 +389,18 @@ Vector3 Collider::collideWithWorld(s32 recursionDepth, CollisionData& colData,Ve
 
     Matrix scale = MatrixScale(1.0f / colData.eRadius.x, 1.0f / colData.eRadius.y,1.0f / colData.eRadius.z);
 
-    if(!collisionSelector) return Vector3Add(pos, vel);
+    if(!collisionSelector && !scene) return Vector3Add(pos, vel);
 
 
     Vector3 currentPos = colData.R3Position;
     Vector3 targetPos = Vector3Add(colData.R3Position, colData.R3Velocity);
     
     BoundingBox queryBox;
+
     queryBox.min = Vector3Min(currentPos, targetPos);
     queryBox.max = Vector3Max(currentPos, targetPos);
+    
+ 
     
  
     Vector3 maxRadius = 
@@ -402,13 +414,32 @@ Vector3 Collider::collideWithWorld(s32 recursionDepth, CollisionData& colData,Ve
     queryBox.max = Vector3Add(queryBox.max, maxRadius);
 
  
-    std::vector<const Triangle*> triangles = collisionSelector->getCandidates(queryBox);
-    
+  //  std::vector<const Triangle*> triangles = collisionSelector->getCandidates(queryBox);
+
+    std::vector<const Triangle*> triangles;
  
+    
+    
+    if (scene) 
+    {
+        auto sceneTriangles = scene->collectTriangles(queryBox);
+        triangles.insert(triangles.end(), sceneTriangles.begin(), sceneTriangles.end());
+        
+       
+    }
+    
+    // Da octree (se disponível)
+    if (collisionSelector) 
+    {
+        auto octreeTriangles = collisionSelector->getCandidates(queryBox);
+        triangles.insert(triangles.end(), octreeTriangles.begin(), octreeTriangles.end());
+    }
+
+
  
     u32 triangleCnt = triangles.size();
     
-	for (s32 i=0; i<triangleCnt; ++i)
+	for (u32 i=0; i<triangleCnt; ++i)
   //  for (const Triangle* tri : triangles) 
     {
         Triangle t = *triangles[i];
@@ -426,7 +457,7 @@ Vector3 Collider::collideWithWorld(s32 recursionDepth, CollisionData& colData,Ve
     }
 
 
-//      DrawBoundingBox(queryBox, LIME);
+     // DrawBoundingBox(queryBox, LIME);
     
 //     // Desenhar posição atual
 //   //  DrawSphere(colData.R3Position, 0.5f, BLUE);

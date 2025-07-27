@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Config.hpp"
 #include "collision.hpp"
-#include "bsp.h"
+#include "bsp.hpp"
 
 
 QuadtreeNode::QuadtreeNode(const BoundingBox& bounds)

@@ -10,6 +10,7 @@ class BinaryFile
 {
 public:
     BinaryFile() {};
+    ~BinaryFile() { clear(); }
     bool open(const char* filename);
     bool create(const void* buffer, u32 size);
     bool save(const char* filename);

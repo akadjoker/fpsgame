@@ -16,10 +16,11 @@ struct DecalData
     Texture2D texture;
     Color tint;
     bool active;
+    u32 ID;
 
     DecalData()
         : position({ 0 }), normal({ 0, 1, 0 }), tangent({ 1, 0, 0 }),
-          bitangent({ 0, 0, 1 }), size(1.0f), tint(WHITE), active(false)
+          bitangent({ 0, 0, 1 }), size(1.0f), tint(WHITE), active(false), ID(0)
     {}
 };
 
@@ -39,9 +40,10 @@ public:
         decals.resize(maxDecals);
     }
  
-      void AddDecal(Vector3 position, Vector3 normal,const Triangle* tri , Texture2D decalTexture, float decalSize = 1.0f,Color tint = WHITE)
+      void AddDecal(Vector3 position, Vector3 normal,const Triangle* tri , Texture2D decalTexture, float decalSize = 1.0f,Color tint = WHITE, int ID = 0)
     {
         DecalData& decal = decals[currentDecalIndex];
+        decal.ID = ID;
         decal.position = position;
         decal.normal = Vector3Normalize(normal);
 
@@ -155,7 +157,7 @@ void DrawTexturedQuad(Texture2D texture, Vector3 center, Vector3 tangent, Vector
         }
     }
 
-    // Obtém o número de decals ativos
+
     int GetActiveDecalCount() const
     {
         int count = 0;
@@ -166,14 +168,23 @@ void DrawTexturedQuad(Texture2D texture, Vector3 center, Vector3 tangent, Vector
         return count;
     }
 
-    // Define a cor de tint para próximos decals
-    void SetDecalTint(Color tint)
+     void ClearByID(u32 id)
     {
-        // Esta função pode ser expandida para aplicar tint a decals específicos
+        for (auto it = decals.begin(); it != decals.end();)
+        {
+            if (it->ID == id)
+            {
+                it->active = false;
+      
+            }
+
+            ++it;
+             
+        }
     }
 };
 
-// Exemplo de uso:
+ 
 /*
 int main() {
     InitWindow(800, 600, "3D Decals Example");
