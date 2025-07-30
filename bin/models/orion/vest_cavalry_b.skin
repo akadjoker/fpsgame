@@ -1,0 +1,6 @@
+tag_head,
+tag_weapon,
+g_vesttorso,models/players/orion/vest_cavalry_b.tga
+g_arml,models/players/orion/arms_cavalry_b.tga
+g_armr,models/players/orion/arms_cavalry_b.tga
+tag_torso,

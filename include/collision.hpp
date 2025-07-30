@@ -1,10 +1,5 @@
 #pragma once
-// #include "raylib.h"
-// #include "raymath.h"
-// #include <stdio.h>
-// #include <stdlib.h>
-// #include <vector>
-// #include <math.h>
+#include "Config.hpp"
 
 class BSPSurface;
 class Scene;
@@ -259,3 +254,8 @@ void GetTriangleInfo(Vector3 v1, Vector3 v2, Vector3 v3, Vector3& center,
 void CalculateSurfaceOrientation(Vector3 hitPoint, const Triangle* hitTriangle,
                                  Vector3& tangent, Vector3& bitangent,
                                  Vector3 normal);
+
+BoundingBox TransformBoundingBox(const BoundingBox& originalBounds,
+                                 const Matrix& transform);
+
+void ExpandBoundingBox(BoundingBox& target, const BoundingBox& source);

@@ -1,0 +1,9 @@
+tag_head,
+tag_weapon,
+u_torso,models/players/orion/upper_damage_4.tga
+u_arml,models/players/orion/upper_damage_6.tga
+u_armr,models/players/orion/upper_damage_6.tga
+g_vesttorso,models/players/orion/vest_damage_4.tga
+g_arml,models/players/orion/upper_damage_6.tga
+g_armr,models/players/orion/upper_damage_6.tga
+tag_torso,

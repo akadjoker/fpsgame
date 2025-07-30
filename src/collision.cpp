@@ -1,10 +1,54 @@
-#include "pch.h"
-#include "Config.hpp"
+ 
 #include "collision.hpp"
 #include "bsp.hpp"
 #include "node.hpp"
-#include <cfloat>
+#include "scene.hpp"
+#include "frustum.hpp"
+ 
 
+void ExpandBoundingBox(BoundingBox& target, const BoundingBox& source)
+{
+    if (source.min.x < target.min.x) target.min.x = source.min.x;
+    if (source.min.y < target.min.y) target.min.y = source.min.y;
+    if (source.min.z < target.min.z) target.min.z = source.min.z;
+    if (source.max.x > target.max.x) target.max.x = source.max.x;
+    if (source.max.y > target.max.y) target.max.y = source.max.y;
+    if (source.max.z > target.max.z) target.max.z = source.max.z;
+}
+
+BoundingBox TransformBoundingBox(const BoundingBox& originalBounds, const Matrix& transform)
+{
+    // Os 8 cantos da bounding box original
+    Vector3 corners[8] = {
+        {originalBounds.min.x, originalBounds.min.y, originalBounds.min.z}, // 0
+        {originalBounds.max.x, originalBounds.min.y, originalBounds.min.z}, // 1
+        {originalBounds.min.x, originalBounds.max.y, originalBounds.min.z}, // 2
+        {originalBounds.max.x, originalBounds.max.y, originalBounds.min.z}, // 3
+        {originalBounds.min.x, originalBounds.min.y, originalBounds.max.z}, // 4
+        {originalBounds.max.x, originalBounds.min.y, originalBounds.max.z}, // 5
+        {originalBounds.min.x, originalBounds.max.y, originalBounds.max.z}, // 6
+        {originalBounds.max.x, originalBounds.max.y, originalBounds.max.z}  // 7
+    };
+    
+    BoundingBox transformedBounds;
+    transformedBounds.min = {FLT_MAX, FLT_MAX, FLT_MAX};
+    transformedBounds.max = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+    
+    // Transformar todos os 8 cantos e encontrar os novos min/max
+    for (int i = 0; i < 8; i++)
+    {
+        Vector3 transformedCorner = Vector3Transform(corners[i], transform);
+        
+        if (transformedCorner.x < transformedBounds.min.x) transformedBounds.min.x = transformedCorner.x;
+        if (transformedCorner.y < transformedBounds.min.y) transformedBounds.min.y = transformedCorner.y;
+        if (transformedCorner.z < transformedBounds.min.z) transformedBounds.min.z = transformedCorner.z;
+        if (transformedCorner.x > transformedBounds.max.x) transformedBounds.max.x = transformedCorner.x;
+        if (transformedCorner.y > transformedBounds.max.y) transformedBounds.max.y = transformedCorner.y;
+        if (transformedCorner.z > transformedBounds.max.z) transformedBounds.max.z = transformedCorner.z;
+    }
+    
+    return transformedBounds;
+}
 
 
 Vector3 GetCameraForward(Camera3D camera)

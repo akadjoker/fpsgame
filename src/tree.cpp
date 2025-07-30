@@ -1,4 +1,4 @@
-#include "pch.h"
+ 
 #include "Config.hpp"
 #include "collision.hpp"
 #include "bsp.hpp"

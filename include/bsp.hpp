@@ -1,10 +1,7 @@
-#ifndef BSP_LOADER_H
-#define BSP_LOADER_H
-
-// #include <raylib.h>
-// #include <raymath.h>
-// #include <stdint.h>
-#include "binaryfile.hpp"
+#pragma once
+#include "Config.hpp"
+class BinaryFile;
+class BSP;
 
 class ViewFrustum;
 
@@ -258,7 +255,7 @@ private:
  
     float scale = {0.1f};
     Matrix transform;
-      Shader shader;   
+    
     std::vector<Texture2D> textures;
     std::vector<Texture2D> lightmaps;
     Texture2D default_texture;
@@ -341,10 +338,9 @@ public:
     bool loadFromFile(const std::string& filePath);
     void drawDebugSurfaces();
     void clear();
-    void render(ViewFrustum& frustum);
+    void render(ViewFrustum& frustum,Shader &shader);
 
-    Shader* getShader() { return &shader; }
-    void SetShader(Shader* shader) { this->shader = *shader; }
+    
 
     const std::vector<BSPSurface>& getSurfaces() const { return mergedSurfaces; }
 
@@ -355,4 +351,4 @@ public:
     ~BSP();
 };
 
-#endif
+ 

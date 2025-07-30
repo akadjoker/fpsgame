@@ -12,6 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(
     -Wextra
     -Wall
+    -O2
     -Wno-missing-field-initializers
     -Wundef
     -Wuninitialized

@@ -1,158 +1,191 @@
+ 
 #include "node.hpp"
-#include <algorithm>
+ 
 
-Node3D::Node3D() 
+
+static u32 s_nextID = 1;
+
+Node3D::Node3D()
 {
-    local= MatrixIdentity();
+    ID = s_nextID++;
+    local = MatrixIdentity();
 }
 
-Node3D::Node3D(Vector3 position) 
+Node3D::Node3D(Vector3 position)
 {
+    ID = s_nextID++;
     localPosition = position;
-    local= MatrixIdentity();
+    local = GetLocalMatrix();
 }
 
-Node3D::Node3D(Vector3 position, Vector3 rotation)
+Node3D::Node3D(Vector3 position, Vector3 rotationEuler)
 {
+    ID = s_nextID++;
     localPosition = position;
-    localRotation = QuaternionFromEuler(rotation.x * DEG2RAD, rotation.y * DEG2RAD, rotation.z * DEG2RAD);
-    local= MatrixIdentity();
+    localRotation = QuaternionFromEuler(rotationEuler.x * DEG2RAD, rotationEuler.y * DEG2RAD, rotationEuler.z * DEG2RAD);
+    local = GetLocalMatrix();
 }
 
 Node3D::~Node3D()
 {
-    for (auto& child : children)
+    for (auto* child : children)
     {
         child->parent = nullptr;
     }
+    children.clear();
 }
 
-// Métodos de hierarquia
 void Node3D::AddChild(Node3D* child)
 {
-   if (!child || child == this) return;
+    if (!child) return;
+    if (child->parent == this) return;
 
-    if (child->parent)
-    {
-        child->parent->RemoveChild(child);
-    }
-
-    children.push_back(child);
-   child->parent = this;
-
+    child->SetParent(this);
 }
 
 void Node3D::RemoveChild(Node3D* child)
 {
-    auto it = std::find(children.begin(), children.end(), child);
-    if (it != children.end())
-    {
-        (*it)->parent = nullptr;
-
-        children.erase(it);
-    }
+    if (!child) return;
+    children.erase(std::remove(children.begin(), children.end(), child), children.end());
+    child->parent = nullptr;
 }
 
 void Node3D::SetParent(Node3D* newParent)
 {
-    if (newParent == this) return;
-
+    if (parent)
+    {
+        parent->RemoveChild(this);
+    }
     parent = newParent;
-
+    if (newParent)
+    {
+        newParent->children.push_back(this);
+    }
+    UpdateWorldTransform();
 }
 
-void Node3D::SetLocalMatrix(Matrix matrix) 
+void Node3D::SetLocalMatrix(Matrix matrix)
 {
     local = matrix;
-   
+
+    // Decompor matriz em posição, rotação e escala
+    localPosition = { matrix.m12, matrix.m13, matrix.m14 };
+    localScale = {
+        Vector3Length({ matrix.m0, matrix.m1, matrix.m2 }),
+        Vector3Length({ matrix.m4, matrix.m5, matrix.m6 }),
+        Vector3Length({ matrix.m8, matrix.m9, matrix.m10 })
+    };
+
+    Matrix rot = matrix;
+    rot.m12 = rot.m13 = rot.m14 = 0;
+    rot = MatrixMultiply(rot, MatrixScale(1.0f / localScale.x, 1.0f / localScale.y, 1.0f / localScale.z));
+    localRotation = QuaternionFromMatrix(rot);
+
+    UpdateWorldTransform();
 }
 
 void Node3D::SetLocalPosition(Vector3 position)
 {
     localPosition = position;
-
+    UpdateWorldTransform();
 }
 
- 
+void Node3D::SetLocalRotation(Quaternion rotation)
+{
+    localRotation = rotation;
+    UpdateWorldTransform();
+}
+
+void Node3D::SetLocalRotationEuler(Vector3 eulerAngles)
+{
+    localRotation = QuaternionFromEuler(eulerAngles.x * DEG2RAD, eulerAngles.y * DEG2RAD, eulerAngles.z * DEG2RAD);
+    UpdateWorldTransform();
+}
 
 void Node3D::SetLocalScale(Vector3 scale)
 {
     localScale = scale;
-
+    UpdateWorldTransform();
 }
 
 void Node3D::Translate(Vector3 translation)
 {
     localPosition = Vector3Add(localPosition, translation);
-
+    UpdateWorldTransform();
 }
 
-
+void Node3D::Rotate(Vector3 eulerRotation)
+{
+    Quaternion delta = QuaternionFromEuler(eulerRotation.x * DEG2RAD, eulerRotation.y * DEG2RAD, eulerRotation.z * DEG2RAD);
+    localRotation = QuaternionMultiply(localRotation, delta);
+    UpdateWorldTransform();
+}
 
 void Node3D::Scale(Vector3 scale)
 {
-    localScale = Vector3Multiply(localScale, scale);
-
+    localScale.x *= scale.x;
+    localScale.y *= scale.y;
+    localScale.z *= scale.z;
+    UpdateWorldTransform();
 }
 
-// Métodos de transformação mundial
 void Node3D::SetWorldPosition(Vector3 position)
 {
     if (parent)
     {
-        Matrix invParentMatrix = MatrixInvert(parent->GetWorldMatrix());
-        Vector3 localPos = Vector3Transform(position, invParentMatrix);
-        SetLocalPosition(localPos);
+        Matrix invParent = parent->GetInverseWorldMatrix();
+        localPosition = Vector3Transform(position, invParent);
     }
     else
     {
-        SetLocalPosition(position);
+        localPosition = position;
     }
+    UpdateWorldTransform();
 }
 
- 
+void Node3D::SetWorldRotation(Quaternion rotation)
+{
+    if (parent)
+    {
+        Quaternion invParent = QuaternionInvert(parent->worldRotation);
+        localRotation = QuaternionMultiply(invParent, rotation);
+    }
+    else
+    {
+        localRotation = rotation;
+    }
+    UpdateWorldTransform();
+}
 
-// Direções mundiais
 Vector3 Node3D::GetForward() const
 {
-    Matrix worldMat = GetWorldMatrix();
-    return Vector3Normalize((Vector3){ -worldMat.m8, -worldMat.m9, -worldMat.m10 });
+    return Vector3Transform({ 0, 0, -1 }, GetWorldMatrix());
 }
 
 Vector3 Node3D::GetRight() const
 {
-    Matrix worldMat = GetWorldMatrix();
-    return Vector3Normalize((Vector3){ worldMat.m0, worldMat.m1, worldMat.m2 });
+    return Vector3Transform({ 1, 0, 0 }, GetWorldMatrix());
 }
 
 Vector3 Node3D::GetUp() const
 {
-    Matrix worldMat = GetWorldMatrix();
-    return Vector3Normalize((Vector3){ worldMat.m4, worldMat.m5, worldMat.m6 });
+    return Vector3Transform({ 0, 1, 0 }, GetWorldMatrix());
 }
 
-// Matrizes
 Matrix Node3D::GetLocalMatrix() const
 {
-    Matrix scaleMat = MatrixScale(localScale.x, localScale.y, localScale.z);
-    Matrix rotMat   = QuaternionToMatrix(localRotation);
-    Matrix transMat = MatrixTranslate(localPosition.x, localPosition.y, localPosition.z);
-    Matrix local = MatrixMultiply(MatrixMultiply(scaleMat, rotMat), transMat);
-    return local;
-
+    return MatrixMultiply(
+        MatrixMultiply(MatrixScale(localScale.x, localScale.y, localScale.z), QuaternionToMatrix(localRotation)),
+        MatrixTranslate(localPosition.x, localPosition.y, localPosition.z));
 }
-
 
 Matrix Node3D::GetWorldMatrix() const
 {
-    Matrix local = GetLocalMatrix();
     if (parent)
     {
-        Matrix parentMatrix = parent->GetWorldMatrix();
-        return MatrixMultiply(parentMatrix, local);
+        return MatrixMultiply(GetLocalMatrix(), parent->GetWorldMatrix());
     }
-    return local;
-    
+    return GetLocalMatrix();
 }
 
 Matrix Node3D::GetInverseWorldMatrix() const
@@ -160,46 +193,44 @@ Matrix Node3D::GetInverseWorldMatrix() const
     return MatrixInvert(GetWorldMatrix());
 }
 
- 
-
- 
- 
- 
- 
-
-void Node3D::SetLocalRotation(Quaternion rotation)
+void Node3D::Update(float dt)
 {
-    localRotation = rotation;
-
-}
-
-void Node3D::SetLocalRotationEuler(Vector3 eulerAngles)
-{
-    localRotation = QuaternionFromEuler(eulerAngles.x * DEG2RAD, eulerAngles.y * DEG2RAD, eulerAngles.z * DEG2RAD);
-
-}
-
-void Node3D::Rotate(Vector3 rotation)
-{
-    Quaternion deltaRotation = QuaternionFromEuler(rotation.x * DEG2RAD, rotation.y * DEG2RAD, rotation.z * DEG2RAD);
-    localRotation = QuaternionMultiply(localRotation, deltaRotation);
-
-}
-
-void Node3D::SetWorldRotation(Vector3 rotation)
-{
-    if (parent)
+    // Este Update é chamado por cena ou manualmente
+    UpdateWorldTransform();
+    for (auto* child : children)
     {
-        Quaternion parentWorldRotation = parent->GetWorldRotation();
-        Quaternion worldRotation = QuaternionFromEuler(rotation.x * DEG2RAD, rotation.y * DEG2RAD, rotation.z * DEG2RAD);
-        localRotation = QuaternionMultiply(worldRotation, QuaternionInvert(parentWorldRotation));
-    
-    }
-    else
-    {
-        SetLocalRotationEuler(rotation);
+        child->Update(dt);
     }
 }
+
+void Node3D::UpdateWorldTransform()
+{
+    Matrix world = GetWorldMatrix();
+
+    worldPosition = { world.m12, world.m13, world.m14 };
+
+    worldScale = {
+        Vector3Length({ world.m0, world.m1, world.m2 }),
+        Vector3Length({ world.m4, world.m5, world.m6 }),
+        Vector3Length({ world.m8, world.m9, world.m10 })
+    };
+
+    Matrix rot = world;
+    rot.m12 = rot.m13 = rot.m14 = 0;
+    rot = MatrixMultiply(rot, MatrixScale(1.0f / worldScale.x, 1.0f / worldScale.y, 1.0f / worldScale.z));
+    worldRotation = QuaternionFromMatrix(rot);
+
+    UpdateChildrenWorldTransform();
+}
+
+void Node3D::UpdateChildrenWorldTransform()
+{
+    for (auto* child : children)
+    {
+        child->UpdateWorldTransform();
+    }
+}
+
 
 Model3D::Model3D(Model* model) : model(model)
 {
@@ -674,134 +705,3 @@ std::vector<Triangle> Model3D::GetTriangles(bool transform)
     return triangles;
 }
 
-
-static u32 IDS = 0;
-
-
-Model3D* Scene::AddNode(Model* model) 
-{
-     Model3D* newNode = new Model3D(model);
-     newNode->ID = IDS++;
-     this->nodes.push_back(newNode);
-     return newNode;
-}
-
-Model3D* Scene::AddNode(Model* model, Vector3 position) 
-{
-    Model3D *newNode = new Model3D(model);
-    newNode->ID = IDS++;
-    newNode->localPosition = position;
-    newNode->GetWorldMatrix();
-    this->nodes.push_back(newNode);
-    return newNode;
-}
-
-Model3D* Scene::AddNode(Model* model, Vector3 position, Vector3 scale)
-{
-    Model3D *newNode = new Model3D(model);
-    newNode->ID = IDS++;
-    newNode->localPosition = position;
-    newNode->localScale = scale;
-    newNode->GetWorldMatrix();
-    this->nodes.push_back(newNode);
-    return newNode;
-}
-
-
-void Scene::RemoveNode(Model3D* node)
-{
-    auto it = std::find(nodes.begin(), nodes.end(), node);
-    if (it != nodes.end())
-    {
-        nodes.erase(it);
-    }
-}
-
-void Scene::Clear() 
-{
-    for (auto& node : nodes)
-    {
-        delete node;
-    }
-    nodes.clear();
-}
-
-
-
-
-
-bool Scene::collide(const Ray& ray, float maxDistance, PickData* data)  
-{
-    if (nodes.empty()) return false;
-
-    for (auto& node : nodes)
-    {
-        if (node->collide(ray, maxDistance, data)) return true;
-    }
-   
-    return false;
-   
-}
-
-
-
-bool Scene::collide(const Vector3& point, float radius, PickData *data) 
-{
-    if (nodes.empty()) return false;
-
-    for (auto& node : nodes)
-    {
-        if (node->collide(point, radius, data)) return true;
-    }
-   
-    return false;
-}
- 
-bool Scene::collide(const BoundingBox& area, PickData* data) 
-{
-    if (nodes.empty()) return false;
-
-    for (auto& node : nodes)
-    {
-        if (node->collide(area, data)) return true;
-    }
-   
-    return false;
-}
-
-std::vector<const Triangle*> Scene::collectTriangles(const BoundingBox& area) const
-{
-    std::vector<const Triangle*> triangles;
-    for (auto& node : nodes)
-    {
-        node->collectTriangles(area, triangles);
-    }
-    return triangles;
-}
-
-
-
-
-void Scene::Update(float dt) 
-{
-    for (auto& node : nodes)
-    {
-        node->Update(dt);
-    }
-
-    for (auto& node : toRemove)
-    {
-        RemoveNode(node);
-    }
-    toRemove.clear();
-
-}
-
-void Scene::Render() 
-{
-
-    for (auto& node : nodes)
-    {
-        node->Render();
-    }
-}

@@ -1,6 +1,7 @@
+ 
 #include "md3.hpp"
-#include <rlgl.h>
-#include "raymath.h"
+#include "animation.hpp"
+
 #define MAT(mat, row, col) (((float*)&mat)[col * 4 + row])
 
 
@@ -138,28 +139,6 @@ LoadMD3::~LoadMD3()
 
 
 
-void DrawTria3D(Vector3 v1, Vector3 v2, Vector3 v3,Vector2 uv1,Vector2 uv2,Vector2 uv3, Color color)
-{
-    //rlCheckRenderBatchLimit(4);
-
-   // rlBegin(RL_QUADS);
-        rlColor4ub(color.r, color.g, color.b, color.a);
-
-        rlTexCoord2f(uv1.x, uv1.y);
-        rlVertex3f(v1.x, v1.y, v1.z);
-
-        rlTexCoord2f(uv2.x,uv2.y);
-        rlVertex3f(v2.x, v2.y, v2.z);
-
-        rlTexCoord2f(uv3.x,uv3.y);
-        rlVertex3f(v3.x, v3.y, v3.z);
-
-
-        rlTexCoord2f(uv1.x,uv1.y);
-        rlVertex3f(v1.x, v1.y, v1.z);
-
-  //  rlEnd();
-}
 
 bool LoadMD3::Load(const char* szFileName,     float scale) 
 {
@@ -322,8 +301,12 @@ bool LoadMD3::Load(const char* szFileName,     float scale)
 			surface.vertices.push_back((Vector3){ x *scale ,y *scale ,z *scale });
 		}
 
+        surface.bounds.min = surface.vertices[0];
+        surface.bounds.max = surface.vertices[0];
+        bounds.min = {FLT_MAX, FLT_MAX, FLT_MAX};
+        bounds.max = {-FLT_MAX, -FLT_MAX, -FLT_MAX};            
 
-		file.seek(meshOffset + meshHeader.uvStart, SEEK_SET);
+        file.seek(meshOffset + meshHeader.uvStart, SEEK_SET);
 		for (int i = 0; i < meshHeader.numVertices; i++)
 		{
 			float u = static_cast<float>(file.readFloat()) ;
@@ -331,6 +314,11 @@ bool LoadMD3::Load(const char* szFileName,     float scale)
 			surface.texCoords.push_back((Vector2){ u, v });
 			Vector3 p = surface.vertices[i];
 		    surface.vertex.push_back(p);
+            surface.bounds.min = Vector3Min(surface.bounds.min, p);
+            surface.bounds.max = Vector3Max(surface.bounds.max, p);
+
+            bounds.min = Vector3Min(bounds.min, p);
+            bounds.max = Vector3Max(bounds.max, p);
 
 		}
 
@@ -389,7 +377,7 @@ void LoadMD3::render(Shader shader, Matrix mat , Matrix parent)
 {
  
 
-    Matrix local = MatrixMultiply(mat,parent);
+    local = MatrixMultiply(mat,parent);
 
     Matrix matView = rlGetMatrixModelview();
     Matrix matProjection = rlGetMatrixProjection();
@@ -400,6 +388,8 @@ void LoadMD3::render(Shader shader, Matrix mat , Matrix parent)
     rlSetUniformMatrix(locIndex, matModelViewProjection);
 
  
+    bounds.min = {FLT_MAX, FLT_MAX, FLT_MAX};
+    bounds.max = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
 
 
    
@@ -410,20 +400,22 @@ void LoadMD3::render(Shader shader, Matrix mat , Matrix parent)
     {
      
 		const tMD3Surface &surface = m_surfaces[i];
-		int numVertices = surface.vertex.size();
-		
-		if (surface.tex!=0)
+        BoundingBox _bounds;
+ 
+ 
+        int numVertices = surface.vertex.size();
+
+        if (surface.tex!=0)
 		{
 			rlActiveTextureSlot(0);
 			rlEnableTexture(surface.tex);
 			
 		}
 
-
-        
-	
 		if (m_surfaces[i].numFrames > 1)
 		{
+              _bounds.min = {FLT_MAX, FLT_MAX, FLT_MAX};
+              _bounds.max = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
 			
 					int currentOffsetVertex = m_frame * numVertices;
 					int nextOffsetVertex = m_nextFrame * numVertices;
@@ -434,15 +426,43 @@ void LoadMD3::render(Shader shader, Matrix mat , Matrix parent)
 						m_surfaces[i].vertex[j].x =  pos.x; 
 						m_surfaces[i].vertex[j].y =  pos.y;
 						m_surfaces[i].vertex[j].z =  pos.z;
+
+
+
+                    if (pos.x < _bounds.min.x) _bounds.min.x = pos.x;
+                    if (pos.y < _bounds.min.y) _bounds.min.y = pos.y;
+                    if (pos.z < _bounds.min.z) _bounds.min.z = pos.z;
+                    if (pos.x > _bounds.max.x) _bounds.max.x = pos.x;
+                    if (pos.y > _bounds.max.y) _bounds.max.y = pos.y;
+                    if (pos.z > _bounds.max.z) _bounds.max.z = pos.z;
+
+
+                    // if (pos.x < bounds.min.x) bounds.min.x = pos.x;
+                    // if (pos.y < bounds.min.y) bounds.min.y = pos.y;
+                    // if (pos.z < bounds.min.z) bounds.min.z = pos.z;
+                    // if (pos.x > bounds.max.x) bounds.max.x = pos.x;
+                    // if (pos.y > bounds.max.y) bounds.max.y = pos.y;
+                    // if (pos.z > bounds.max.z) bounds.max.z = pos.z;
+	
+
 					 }
 					m_surfaces[i].update();
 			
-		}
+		}else 
+        {
+            _bounds = surface.bounds;
+        }
+         m_surfaces[i].transformedBounds = TransformBoundingBox(_bounds, local);
 
-   m_surfaces[i].render();
-  
-}
 
+         ExpandBoundingBox(bounds, _bounds);
+         
+         m_surfaces[i].render();
+         
+        }
+        
+//bounds=TransformBoundingBox(bounds, local);        
+DrawBoundingBox(bounds, RED);
  
 
  for (u32 i = 0; i < numOfTags; i++)
@@ -454,8 +474,9 @@ void LoadMD3::render(Shader shader, Matrix mat , Matrix parent)
      //   rlPopMatrix();
 
       //    DrawCube(m_links[i].position,0.1,0.1,0.1,RED);
+        //  m_links[i].link->trasform = m_links[i].trasform;
 
-          m_links[i].link->render(shader, m_links[i].trasform,local);
+          m_links[i].link->render(shader, m_links[i].trasform, local);
            //m_links[i].link->rotation = m_links[i].rotation;
 
   
@@ -502,8 +523,10 @@ void LoadMD3::setLink(const char *name, LoadMD3 *link)
           if (strcmp(m_links[i].name, name) == 0)
           {
                m_links[i].link = link;
+               return;
           }
      }
+     LogWarning("Link %s nao encontrado", name);
 }
 
 Vector3 LoadMD3::GetTagPosition(u32 index) 
@@ -511,78 +534,75 @@ Vector3 LoadMD3::GetTagPosition(u32 index)
       return m_links[index].position;
 }
 
+bool LoadMD3::pick(Ray& ray)
+{
+
+        for (u32 i = 0; i < m_surfaces.size(); i++)
+        {
+            if (m_surfaces[i].pick(ray,local))
+            {
+                return true;
+            }
+        }
+    // RayCollision result = GetRayCollisionBox(ray,bounds); 
+    // if (result.hit) 
+    // {   
+    //     DrawBoundingBox(bounds, RED);
+    //     for (u32 i = 0; i < m_surfaces.size(); i++)
+    //     {
+    //         if (m_surfaces[i].pick(ray,local))
+    //         {
+    //             return true;
+    //         }
+    //     }
+
+    // }
+    return false;
+}
+
 
 void LoadMD3::UpdateTags(int currentFrame, int nextFrame, float pol)
 {
      int currentOffset = currentFrame * numOfTags;
-  //   int nextOffset = nextFrame * numOfTags;
+     int nextOffset = nextFrame * numOfTags;
 
 
      for (u32 i = 0; i < numOfTags; i++)
      {
-         Vector3 position = m_tags[currentOffset + i].position;
-         //Vector3Lerp(m_tags[currentOffset + i].position,
-           //          m_tags[nextOffset + i].position, pol);
+         Vector3 final_position = Vector3Lerp(m_tags[currentOffset + i].position, m_tags[nextOffset + i].position, pol);
 
-         //  Quaternion rotCurrent = CreateFromMatrix(m_tags[currentOffset +
-         //  i].rotation,3); Quaternion rotNext   =
-         //  CreateFromMatrix(m_tags[nextOffset + i].rotation,3);
-         // Quaternion  rotation = QuaternionSlerp(rotCurrent, rotNext, pol);
-
-
-         //Matrix mat =  QuaternionToMatrix(rotation);
-
-       // m_links[i].trasform = BuildTagMatrix(m_tags[currentOffset + i], m_tags[nextOffset + i], pol);
-        //  MatrixTranspose(QuaternionToMatrix(rotation));
+    
         
-        // Mat3 rotA = Mat3FromMD3AxisColumn(m_tags[currentOffset + i].axes);
-        // Quaternion quatA = Mat3ToQuaternion(rotA);
+         Mat3 rotA = Mat3FromMD3AxisColumn(m_tags[currentOffset + i].axes);
+         Quaternion quatA = Mat3ToQuaternion(rotA);
+         Mat3 rotB = Mat3FromMD3AxisColumn(m_tags[nextOffset + i].axes);
+          Quaternion quatB = Mat3ToQuaternion(rotB);
 
-        // Mat3 rotB = Mat3FromMD3AxisColumn(m_tags[nextOffset + i].axes);
-        // Quaternion quatB = Mat3ToQuaternion(rotB);
-
-     //   Quaternion rotation = QuaternionSlerp(quatA, quatB, pol);
+         Quaternion final_rotation = QuaternionSlerp(quatA, quatB, pol);
 
 
-        m_links[i].trasform= MatrixIdentity();
-        m_links[i].position = position;
+         
+        m_links[i].position = final_position;
+         m_links[i].trasform= QuaternionToMatrix(final_rotation);
 
-        //Matrix traslation = MatrixTranslate(position.x, position.y, position.z);
 
-       // m_links[i].trasform= MatrixMultiply(QuaternionToMatrix(rotation),traslation);
-        
+        m_links[i].trasform= MatrixIdentity();         
         m_links[i].trasform.m0 = m_tags[currentOffset + i].axes[0].x;
         m_links[i].trasform.m1 = m_tags[currentOffset + i].axes[0].y;
         m_links[i].trasform.m2 = m_tags[currentOffset + i].axes[0].z;
-
         m_links[i].trasform.m4 = m_tags[currentOffset + i].axes[1].x;
         m_links[i].trasform.m5 = m_tags[currentOffset + i].axes[1].y;
         m_links[i].trasform.m6 = m_tags[currentOffset + i].axes[1].z;
-
         m_links[i].trasform.m8 = m_tags[currentOffset + i].axes[2].x;
         m_links[i].trasform.m9 = m_tags[currentOffset + i].axes[2].y;
         m_links[i].trasform.m10 = m_tags[currentOffset + i].axes[2].z;
         
         
+        m_links[i].trasform.m12 = final_position.x;
+        m_links[i].trasform.m13 = final_position.y;
+        m_links[i].trasform.m14 = final_position.z;
         
-        m_links[i].trasform.m12 = position.x;
-        m_links[i].trasform.m13 = position.y;
-        m_links[i].trasform.m14 = position.z;
-
-        // if (m_links[i].link)
-        // {
-        //     m_links[i].link->trasform = m_links[i].trasform;
-        // }
-
-
-            // m[0] = MAT(matrix,0,0); m[4] = MAT(matrix,0,1); m[8] = MAT(matrix,0,2); m[12] = position[0];
-			// m[1] = MAT(matrix,1,0); m[5] = MAT(matrix,1,1); m[9] = MAT(matrix,1,2); m[13] = position[1];
-			// m[2] = MAT(matrix,2,0); m[6] = MAT(matrix,2,1); m[10]= MAT(matrix,2,2); m[14] = position[2];
-			// m[3] = 0;               m[7] = 0;               m[11]= 0;               m[15] = 1;
-
-
-        // m_links[i].trasform = mat;
-//         BuildMatrixFromRotationAndPosition(mat, m_links[i].position);
+ 
      }
 }
 
@@ -630,6 +650,56 @@ void LoadMD3::update(float dtime)
    
 }
 
+bool tMD3Surface::pick(Ray& ray, Matrix& mat)
+{
+    RayCollision result = GetRayCollisionBox(ray,transformedBounds); 
+    if (result.hit) 
+    {
+        bool foundTriangle = false;
+        float closestDistance = FLT_MAX;
+        Vector3 closestP0, closestP1, closestP2;
+        Vector3 closestPoint;
+        
+        for (u32 i = 0; i < indices.size(); i += 3)
+        {
+            Vector3 p0 = vertices[indices[i + 0]];
+            Vector3 p1 = vertices[indices[i + 1]];
+            Vector3 p2 = vertices[indices[i + 2]];
+            
+            p0 = Vector3Transform(p0, mat);
+            p1 = Vector3Transform(p1, mat);
+            p2 = Vector3Transform(p2, mat);
+            
+            RayCollision triangleResult = GetRayCollisionTriangle(ray, p0, p1, p2);
+            
+            if (triangleResult.hit)
+            {
+                // Verificar se este triângulo é mais próximo
+                if (triangleResult.distance < closestDistance)
+                {
+                    closestDistance = triangleResult.distance;
+                    closestP0 = p0;
+                    closestP1 = p1;
+                    closestP2 = p2;
+                    closestPoint = triangleResult.point;
+                    foundTriangle = true;
+                }
+            }
+        }
+        
+        // Desenhar apenas o triângulo mais próximo
+        if (foundTriangle)
+        {
+            DrawTriangle3D(closestP0, closestP1, closestP2, RED);
+            
+            // Opcional: desenhar um ponto no local da colisão
+            DrawSphere(closestPoint, 0.05f, YELLOW);
+            
+            return true;
+        }
+    }
+    return false;
+}
 
  
 

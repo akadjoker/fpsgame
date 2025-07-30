@@ -1,5 +1,6 @@
+
 #include "binaryfile.hpp"
-#include <raylib.h>
+
 
 bool BinaryFile::open(const char* filename)
 {

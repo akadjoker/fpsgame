@@ -1,3 +1,4 @@
+
 #include "camera.hpp"
 
 void CameraFPS::Init(Vector3 startPos)
@@ -17,7 +18,7 @@ void CameraFPS::Init(Vector3 startPos)
 
 void CameraFPS::Update(float deltaTime, Collider& world)
 {
-
+ 
 
  
     if (IsKeyPressed(KEY_ENTER))

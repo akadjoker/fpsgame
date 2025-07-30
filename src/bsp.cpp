@@ -1,10 +1,7 @@
-#include "pch.h"
-#include "Config.hpp"
-#include "bsp.hpp"
-#include <rlgl.h>
  
+#include "bsp.hpp"
 #include "frustum.hpp"
-//#include "glad.h" 
+#include "binaryfile.hpp"
 
 Texture2D LoadTextureFromName(const std::string& basePath,
                               const std::string& textureName)
@@ -1061,15 +1058,11 @@ void BSPSurface::render()
 
 }
 
-void BSP::render(ViewFrustum& frustum)
+void BSP::render(ViewFrustum& frustum, Shader &shader)
 {
 
     view_count = 0;
-    rlEnableShader(shader.id);
-  //  int locIndex = GetShaderLocation(shader, "mvp");
-
-  //  LogInfo("Rendering %i %d", shader.id,locIndex);
-
+    
     Matrix matView = rlGetMatrixModelview();
     Matrix matProjection = rlGetMatrixProjection();
     Matrix matModelView = MatrixMultiply(transform, matView);
